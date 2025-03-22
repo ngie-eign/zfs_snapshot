@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=65", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zfs_snapshot"
+version = "0.1.1"
+requires-python = ">=3.10"
+authors = [
+  { name = "Enji Cooper", email = "yaneurabeya@gmail.com" }
+]
+maintainers = [
+  { name = "Enji Cooper", email = "yaneurabeya@gmail.com" }
+]
+description = "ZFS snapshot wrapper utility"
+readme = "README.md"
+license = "BSD-2-clause"
+keywords = ["zfs"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12"
+]
+
+[project.scripts]
+zfs_snapshot = "zfs_snapshot.__main__:main"
+
+[project.urls]
+Repository = "https://github.com/ngie-eign/zfs_snapshot"
+Issues = "https://github.com/ngie-eign/zfs_snapshot/issues"
+
+[tool.setuptools.packages.find]
+where = ["src/"]
+include = ["zfs_snapshot"]
