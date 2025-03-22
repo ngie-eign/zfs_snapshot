@@ -17,7 +17,7 @@ maintainers = [
 ]
 description = "ZFS snapshot wrapper utility"
 readme = "README.md"
-license = "BSD-2-clause"
+license = {file = "LICENSE"}
 keywords = ["zfs"]
 classifiers = [
   "Development Status :: 5 - Production/Stable",
