@@ -1,71 +1,62 @@
-#!/usr/bin/env python3
-"""
-Copyright (c) 2019-2023, Enji Cooper
-All rights reserved.
+"""zfs_snapshot: CLI."""
+# SPDX-License-Identifier: BSD-2-Clause
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
+# ruff: noqa: ANN401, FBT001
 
-- Redistributions of source code must retain the above copyright notice,
-  this list of conditions and the following disclaimer.
-- Redistributions in binary form must reproduce the above copyright notice,
-  this list of conditions and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-"""
+from __future__ import annotations
 
 import argparse
-import collections
 import datetime
+from dataclasses import dataclass
 from typing import Any
-from typing import Optional
-from typing import Union
 
 from . import zfs_snapshot
 
 
-SnapshotClass = collections.namedtuple(
-    "SnapshotClass", ["name", "lifetime", "date_format_qualifier"]
-)
+@dataclass(frozen=True, init=True, repr=True)
+class SnapshotPolicy:
+    """Dataclass which defines a snapshot policy.
+
+    Fields:
+        name: snapshot policy descriptor, e.g., "years".
+        lifetime: snapshot policy lifetime.
+        date_format_qualifier: the date format qualifier to use when computing snapshot
+                               names.
+    """
+
+    name: str
+    lifetime: datetime.timedelta
+    date_format_qualifier: str
+
 
 DATE_ELEMENT_SEPARATOR = "."
-NOW = datetime.datetime.now()
+NOW = datetime.datetime.now()  # noqa: DTZ005
 # These are very much approximations of reality.
 #
-# XXX: I really wish `dateutil.relativedelta(..)` actually worked reliably (it
+# I really wish `dateutil.relativedelta(..)` actually worked reliably; it
 # was screwing up the difference between a datetime and the value in the
-# relativedelta).
+# `relativedelta`.
 WEEKS_IN_A_MONTH = 4
 WEEKS_IN_A_YEAR = 52
 # The list order matters. See `main(..)` for more details.
 SNAPSHOT_CATEGORIES = [
-    SnapshotClass(
+    SnapshotPolicy(
         name="years",
         lifetime=datetime.timedelta(weeks=2 * WEEKS_IN_A_YEAR),
         date_format_qualifier="Y",
     ),
-    SnapshotClass(
+    SnapshotPolicy(
         name="months",
         lifetime=datetime.timedelta(weeks=1 * WEEKS_IN_A_YEAR),
         date_format_qualifier="m",
     ),
-    SnapshotClass(
+    SnapshotPolicy(
         name="days",
         lifetime=datetime.timedelta(weeks=1 * WEEKS_IN_A_MONTH),
         date_format_qualifier="d",
     ),
-    SnapshotClass(
-        name="hours", lifetime=datetime.timedelta(days=1), date_format_qualifier="H"
+    SnapshotPolicy(
+        name="hours", lifetime=datetime.timedelta(days=1), date_format_qualifier="H",
     ),
 ]
 DEFAULT_SNAPSHOT_PERIOD = "hours"
@@ -73,7 +64,7 @@ DEFAULT_SNAPSHOT_PREFIX = "auto"
 
 
 def execute_snapshot_policy(*args: Any, **kwargs: Any) -> None:
-    """Proxy function for testing"""
+    """Proxy function for testing."""
     return zfs_snapshot.execute_snapshot_policy(*args, **kwargs)
 
 
@@ -84,18 +75,17 @@ def list_vdevs(*args: Any, **kwargs: Any) -> list[str]:
 
 def lifetime_type(optarg: str) -> int:
     """Validate --lifetime to ensure that it's > 0."""
-
     value = int(optarg)
     if value <= 0:
+        msg = "Lifetime must be an integer value greater than 0"
         raise argparse.ArgumentTypeError(
-            "Lifetime must be an integer value greater than 0"
+            msg,
         )
     return value
 
 
 def period_type(optarg: str) -> int:
     """Validate --snapshot-period to ensure that the value passed is valid."""
-
     value = optarg.lower()
     for i, mapping_tuple in enumerate(SNAPSHOT_CATEGORIES):
         if mapping_tuple.name == value:
@@ -104,12 +94,12 @@ def period_type(optarg: str) -> int:
 
 
 def prefix_type(optarg: str) -> str:
-    """Validate --prefix to ensure that it's a non-nul string"""
-
+    """Validate --prefix to ensure that it's a non-nul string."""
     value = optarg
     if value:
         return value
-    raise argparse.ArgumentTypeError("Snapshot prefix must be a non-zero length string")
+    err_msg = "Snapshot prefix must be a non-zero length string"
+    raise argparse.ArgumentTypeError(err_msg)
 
 
 def vdev_type(optarg: str) -> str:
@@ -117,20 +107,29 @@ def vdev_type(optarg: str) -> str:
 
     This ensures that the vdev provided on the CLI exist(ed) at the time the script was
     executed.
-    """
 
+    Returns:
+        The parsed value corresponding to a valid `vdev`.
+
+    """
     all_vdevs = list_vdevs()
     value = optarg
     if value in all_vdevs:
         return value
-    raise argparse.ArgumentTypeError(
-        "Virtual device specified, '%s', does not exist" % (value)
-    )
+    err_msg = f"Virtual device specified, '{value}', does not exist"
+    raise argparse.ArgumentTypeError(err_msg)
 
 
-def parse_args(args: Optional[list[str]] = None) -> argparse.Namespace:
-    """main"""
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse arguments.
 
+    Args:
+        argv: `sys.argv` in a nutshell.
+
+    Returns:
+        A argparse.Namespace corresponding to the parsed arguments.
+
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--lifetime",
@@ -166,42 +165,61 @@ def parse_args(args: Optional[list[str]] = None) -> argparse.Namespace:
         help="dataset or zvol to snapshot",
         type=vdev_type,
     )
-    return parser.parse_args(args)
+    return parser.parse_args(args=argv)
 
 
 def compute_cutoff(
-    snapshot_category: SnapshotClass,
-    lifetime_override: Union[int, float],
+    policy: SnapshotPolicy,
+    lifetime_override: float,
 ) -> datetime.datetime:
+    """Compute the expiration time for a given policy.
+
+    Args:
+        policy: the snapshot policy.
+        lifetime_override: an override value for the snapshot lifetime.
+
+    Returns:
+        A `datetime.datetime` object that corresponds to a snapshot's lifetime.
+
+    """
     if lifetime_override:
-        category_name = snapshot_category.name
-        if category_name == "years":
-            category_name = "weeks"
+        policy_name = policy.name
+        if policy_name == "years":
+            policy_name = "weeks"
             lifetime_override *= WEEKS_IN_A_YEAR
-        elif category_name == "months":
-            category_name = "weeks"
+        elif policy_name == "months":
+            policy_name = "weeks"
             lifetime_override *= WEEKS_IN_A_MONTH
-        lifetime = datetime.timedelta(**{category_name: lifetime_override})
+        lifetime = datetime.timedelta(**{policy_name: lifetime_override})
     else:
-        lifetime = snapshot_category.lifetime
+        lifetime = policy.lifetime
     return NOW - lifetime
 
 
 def compute_vdevs(vdevs: list[str], recursive: bool) -> list[str]:
+    """Compute a full ZFS vdev list from input vdevs.
+
+    Args:
+        vdevs: a list of ZFS `vdevs` to expand on.
+        recursive: get vdevs recursively.
+
+    Returns:
+        A list of vdevs that is a superset of the provided vdevs.
+
+    """
     if recursive and vdevs:
         target_vdevs = []
         for vdev in vdevs:
             target_vdevs.extend(
-                zfs_snapshot.zfs(f"list -H -o name -r {vdev}").splitlines()
+                zfs_snapshot.zfs(f"list -H -o name -r {vdev}").splitlines(),
             )
         return target_vdevs
     return vdevs or list_vdevs()
 
 
-def main(args: Optional[list[str]] = None) -> None:
-    """self-explanatory"""
-
-    opts = parse_args(args=args)
+def main(args: list[str] | None = None) -> int:
+    """Eponymous main."""
+    args = parse_args(args=args)
 
     # This builds a hierarchical date string in reverse recursive order, e.g.,
     # "2018.09.01" would be "daily".
@@ -210,19 +228,20 @@ def main(args: Optional[list[str]] = None) -> None:
     date_format = DATE_ELEMENT_SEPARATOR.join(
         [
             "%" + SNAPSHOT_CATEGORIES[i].date_format_qualifier
-            for i in range(opts.snapshot_period + 1)
-        ]
+            for i in range(args.snapshot_period + 1)
+        ],
     )
 
-    snapshot_category = SNAPSHOT_CATEGORIES[opts.snapshot_period]
+    snapshot_category = SNAPSHOT_CATEGORIES[args.snapshot_period]
     snapshot_suffix = snapshot_category.date_format_qualifier
+    # ruff: noqa: UP031
     snapshot_name_format = "%s-%s%s" % (
-        opts.snapshot_prefix,
+        args.snapshot_prefix,
         date_format,
         snapshot_suffix,
     )
-    snapshot_cutoff = compute_cutoff(snapshot_category, opts.lifetime)
-    vdevs = compute_vdevs(opts.vdevs, opts.recursive)
+    snapshot_cutoff = compute_cutoff(snapshot_category, args.lifetime)
+    vdevs = compute_vdevs(args.vdevs, args.recursive)
 
     for vdev in sorted(vdevs, reverse=True):
         execute_snapshot_policy(
@@ -230,5 +249,7 @@ def main(args: Optional[list[str]] = None) -> None:
             NOW.timetuple(),
             snapshot_cutoff.timetuple(),
             snapshot_name_format,
-            recursive=opts.recursive,
+            recursive=args.recursive,
         )
+
+    return 0

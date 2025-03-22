@@ -4,8 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zfs_snapshot"
-version = "0.1.1"
-requires-python = ">=3.10"
+version = "0.2.0"
+dependencies = [
+  "python-dateutil"
+]
+requires-python = ">=3.11"
 authors = [
   { name = "Enji Cooper", email = "yaneurabeya@gmail.com" }
 ]
@@ -19,9 +22,9 @@ keywords = ["zfs"]
 classifiers = [
   "Development Status :: 5 - Production/Stable",
   "Intended Audience :: Developers",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
-  "Programming Language :: Python :: 3.12"
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13"
 ]
 
 [project.scripts]
@@ -31,6 +34,43 @@ zfs_snapshot = "zfs_snapshot.__main__:main"
 Repository = "https://github.com/ngie-eign/zfs_snapshot"
 Issues = "https://github.com/ngie-eign/zfs_snapshot/issues"
 
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.coverage.run]
+branch = true
+
 [tool.setuptools.packages.find]
 where = ["src/"]
 include = ["zfs_snapshot"]
+
+[tool.tox]
+legacy_tox_ini = """
+[tox]
+min_version = 4.0
+env_list =
+    coverage
+    py311
+    py312
+    py313
+
+[testenv]
+deps =
+    pytest
+commands =
+    python -m pytest {posargs:-v tests}
+
+[testenv:coverage]
+deps =
+    pytest
+    pytest-cov
+commands =
+    python -m pytest --cov=zfs_snapshot --cov-fail-under=80 --cov-report=html --cov-report=term \
+	{posargs:-v tests}
+
+[testenv:type]
+deps =
+    mypy
+commands =
+    python -m mypy {posargs:src}
+"""
